@@ -14,6 +14,7 @@ export interface PokemonEntry {
   types: string[];
   stats: Record<string, number>;
   bst: number;
+  dexes: string[];
 }
 
 export async function getAllPokemon(): Promise<PokemonEntry[]> {
@@ -23,6 +24,11 @@ export async function getAllPokemon(): Promise<PokemonEntry[]> {
       name
       pokemon_v2_pokemontypes { pokemon_v2_type { name } }
       pokemon_v2_pokemonstats { base_stat pokemon_v2_stat { name } }
+      pokemon_v2_pokemonspecy {
+        pokemon_v2_pokemondexnumbers {
+          pokemon_v2_pokedex { name }
+        }
+      }
     }
   }`;
 
@@ -49,6 +55,8 @@ export async function getAllPokemon(): Promise<PokemonEntry[]> {
       types: p.pokemon_v2_pokemontypes.map((t: any) => t.pokemon_v2_type.name),
       stats,
       bst,
+      dexes: (p.pokemon_v2_pokemonspecy?.pokemon_v2_pokemondexnumbers ?? [])
+        .map((d: any) => d.pokemon_v2_pokedex.name) as string[],
     };
   });
 }

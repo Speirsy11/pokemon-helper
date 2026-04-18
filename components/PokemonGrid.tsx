@@ -20,6 +20,26 @@ const GENS = [
   { label: 'IX',   min: 906, max: 1025 },
 ];
 
+// Maps each game to its PokeAPI regional Pokédex names.
+// A Pokémon appears in a game if it's in any of those dexes.
+const GAMES = [
+  { id: 'rb',   label: 'Red / Blue',      dexes: ['kanto'] },
+  { id: 'gs',   label: 'Gold / Silver',   dexes: ['original-johto'] },
+  { id: 'rs',   label: 'Ruby / Sapphire', dexes: ['hoenn'] },
+  { id: 'frlg', label: 'FR / LG',         dexes: ['kanto'] },
+  { id: 'dp',   label: 'Diamond / Pearl', dexes: ['original-sinnoh'] },
+  { id: 'hgss', label: 'HG / SS',         dexes: ['updated-johto'] },
+  { id: 'bw',   label: 'Black / White',   dexes: ['original-unova'] },
+  { id: 'b2w2', label: 'B2 / W2',         dexes: ['updated-unova'] },
+  { id: 'xy',   label: 'X / Y',           dexes: ['kalos-central', 'kalos-coastal', 'kalos-mountain'] },
+  { id: 'oras', label: 'OR / AS',         dexes: ['updated-hoenn'] },
+  { id: 'sm',   label: 'Sun / Moon',      dexes: ['original-alola'] },
+  { id: 'usum', label: 'US / UM',         dexes: ['updated-alola'] },
+  { id: 'swsh', label: 'Sw / Sh',         dexes: ['galar', 'isle-of-armor', 'crown-tundra'] },
+  { id: 'la',   label: 'Legends: A',      dexes: ['hisui'] },
+  { id: 'sv',   label: 'Sc / Vi',         dexes: ['paldea', 'kitakami', 'blueberry'] },
+];
+
 const SORT_OPTIONS = [
   { key: 'id',               label: '#'    },
   { key: 'name',             label: 'Name' },
@@ -38,6 +58,7 @@ const DEFAULT_DIR  = 'asc';
 export function PokemonGrid({ pokemon }: { pokemon: PokemonEntry[] }) {
   const [query,         setQuery]         = useState('');
   const [selectedGens,  setSelectedGens]  = useState<Set<number>>(new Set());
+  const [selectedGames, setSelectedGames] = useState<Set<string>>(new Set());
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
   const [sortKey,       setSortKey]       = useState(DEFAULT_SORT);
   const [sortDir,       setSortDir]       = useState<'asc' | 'desc'>(DEFAULT_DIR);
@@ -49,11 +70,12 @@ export function PokemonGrid({ pokemon }: { pokemon: PokemonEntry[] }) {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const s = JSON.parse(raw);
-        if (s.query)         setQuery(s.query);
-        if (s.gens?.length)  setSelectedGens(new Set(s.gens));
-        if (s.types?.length) setSelectedTypes(new Set(s.types));
-        if (s.sortKey)       setSortKey(s.sortKey);
-        if (s.sortDir)       setSortDir(s.sortDir);
+        if (s.query)          setQuery(s.query);
+        if (s.gens?.length)   setSelectedGens(new Set(s.gens));
+        if (s.games?.length)  setSelectedGames(new Set(s.games));
+        if (s.types?.length)  setSelectedTypes(new Set(s.types));
+        if (s.sortKey)        setSortKey(s.sortKey);
+        if (s.sortDir)        setSortDir(s.sortDir);
       }
     } catch {}
     setHydrated(true);
@@ -64,15 +86,22 @@ export function PokemonGrid({ pokemon }: { pokemon: PokemonEntry[] }) {
     if (!hydrated) return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        query, gens: [...selectedGens], types: [...selectedTypes], sortKey, sortDir,
+        query, gens: [...selectedGens], games: [...selectedGames], types: [...selectedTypes], sortKey, sortDir,
       }));
     } catch {}
-  }, [hydrated, query, selectedGens, selectedTypes, sortKey, sortDir]);
+  }, [hydrated, query, selectedGens, selectedGames, selectedTypes, sortKey, sortDir]);
 
   const toggleGen = (i: number) =>
     setSelectedGens(prev => {
       const next = new Set(prev);
       next.has(i) ? next.delete(i) : next.add(i);
+      return next;
+    });
+
+  const toggleGame = (id: string) =>
+    setSelectedGames(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
 
@@ -93,10 +122,11 @@ export function PokemonGrid({ pokemon }: { pokemon: PokemonEntry[] }) {
   };
 
   const isDirty =
-    !!query || selectedGens.size > 0 || selectedTypes.size > 0 || sortKey !== DEFAULT_SORT || sortDir !== DEFAULT_DIR;
+    !!query || selectedGens.size > 0 || selectedGames.size > 0 || selectedTypes.size > 0 ||
+    sortKey !== DEFAULT_SORT || sortDir !== DEFAULT_DIR;
 
   const reset = () => {
-    setQuery(''); setSelectedGens(new Set()); setSelectedTypes(new Set());
+    setQuery(''); setSelectedGens(new Set()); setSelectedGames(new Set()); setSelectedTypes(new Set());
     setSortKey(DEFAULT_SORT); setSortDir(DEFAULT_DIR);
   };
 
@@ -105,6 +135,10 @@ export function PokemonGrid({ pokemon }: { pokemon: PokemonEntry[] }) {
 
     const result = pokemon.filter(p => {
       if (selectedGens.size > 0 && ![...selectedGens].some(gi => p.id >= GENS[gi].min && p.id <= GENS[gi].max)) return false;
+      if (selectedGames.size > 0) {
+        const requiredDexes = new Set([...selectedGames].flatMap(id => GAMES.find(g => g.id === id)?.dexes ?? []));
+        if (!p.dexes.some(d => requiredDexes.has(d))) return false;
+      }
       if (selectedTypes.size > 0 && !p.types.some(t => selectedTypes.has(t))) return false;
       if (q && !p.name.includes(q) && String(p.id) !== q) return false;
       return true;
@@ -121,7 +155,7 @@ export function PokemonGrid({ pokemon }: { pokemon: PokemonEntry[] }) {
       if (va > vb) return sortDir === 'asc' ?  1 : -1;
       return 0;
     });
-  }, [pokemon, query, selectedGens, selectedTypes, sortKey, sortDir]);
+  }, [pokemon, query, selectedGens, selectedGames, selectedTypes, sortKey, sortDir]);
 
   const showStatBadge = sortKey !== 'id' && sortKey !== 'name';
 
@@ -173,7 +207,27 @@ export function PokemonGrid({ pokemon }: { pokemon: PokemonEntry[] }) {
           })}
         </div>
 
-        {/* Row 3: type */}
+        {/* Row 3: game */}
+        <div className="flex items-start gap-x-2 gap-y-1.5 px-4 py-2.5 flex-wrap" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+          <span className="font-mono text-[0.57rem] tracking-[0.25em] text-white/20 uppercase w-9 shrink-0 pt-0.5">GAME</span>
+          <div className="flex flex-wrap gap-1.5">
+            {GAMES.map(g => {
+              const on = selectedGames.has(g.id);
+              return (
+                <button key={g.id} onClick={() => toggleGame(g.id)}
+                  className="px-2 py-0.5 rounded font-mono text-[0.65rem] tracking-wide transition-colors"
+                  style={on
+                    ? { background: 'rgba(255,255,255,0.18)', color: 'rgba(255,255,255,0.95)' }
+                    : { background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.35)' }}
+                >
+                  {g.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Row 4: type */}
         <div className="flex items-start gap-x-2 gap-y-1.5 px-4 py-2.5 flex-wrap" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
           <span className="font-mono text-[0.57rem] tracking-[0.25em] text-white/20 uppercase w-9 shrink-0 pt-0.5">TYPE</span>
           <div className="flex flex-wrap gap-1.5">
