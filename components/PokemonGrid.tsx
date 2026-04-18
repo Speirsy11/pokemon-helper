@@ -9,44 +9,76 @@ interface PokemonEntry {
   id: number;
 }
 
+const GENS = [
+  { label: 'All',  min: 1,   max: 1025 },
+  { label: 'I',    min: 1,   max: 151  },
+  { label: 'II',   min: 152, max: 251  },
+  { label: 'III',  min: 252, max: 386  },
+  { label: 'IV',   min: 387, max: 493  },
+  { label: 'V',    min: 494, max: 649  },
+  { label: 'VI',   min: 650, max: 721  },
+  { label: 'VII',  min: 722, max: 809  },
+  { label: 'VIII', min: 810, max: 905  },
+  { label: 'IX',   min: 906, max: 1025 },
+];
+
 export function PokemonGrid({ pokemon }: { pokemon: PokemonEntry[] }) {
   const [query, setQuery] = useState('');
+  const [gen, setGen] = useState(0); // index into GENS
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return pokemon;
-    return pokemon.filter(p =>
-      p.name.includes(q) || String(p.id).padStart(4, '0').includes(q) || String(p.id) === q
-    );
-  }, [pokemon, query]);
+    const { min, max } = GENS[gen];
+    return pokemon.filter(p => {
+      if (p.id < min || p.id > max) return false;
+      if (!q) return true;
+      return p.name.includes(q) || String(p.id) === q;
+    });
+  }, [pokemon, query, gen]);
 
   return (
     <div className="w-full max-w-5xl mx-auto px-4">
-      {/* Search */}
-      <div className="mb-6 flex">
+      {/* Controls */}
+      <div className="mb-5 flex flex-wrap items-center gap-3">
         <div
-          className="flex w-full max-w-md rounded overflow-hidden border transition-all"
+          className="flex w-full max-w-xs rounded overflow-hidden border transition-all"
           style={{ background: 'var(--surface)', borderColor: 'rgba(255,255,255,0.11)' }}
         >
           <input
             type="text"
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Search by name or number…"
+            placeholder="Search name or number…"
             className="flex-1 bg-transparent border-none outline-none px-4 py-2.5 text-white/80 placeholder-white/20 text-sm font-medium tracking-wide"
             autoComplete="off"
             spellCheck={false}
           />
           {query && (
-            <button
-              onClick={() => setQuery('')}
-              className="px-3 text-white/30 hover:text-white/60 transition-colors text-lg"
-            >
+            <button onClick={() => setQuery('')} className="px-3 text-white/30 hover:text-white/60 transition-colors text-lg">
               ×
             </button>
           )}
         </div>
-        <span className="ml-3 self-center font-mono text-xs text-white/25">
+
+        {/* Gen filters */}
+        <div className="flex flex-wrap gap-1.5">
+          {GENS.map((g, i) => (
+            <button
+              key={g.label}
+              onClick={() => setGen(i)}
+              className="px-2.5 py-1 rounded text-xs font-display tracking-wider transition-colors"
+              style={
+                gen === i
+                  ? { background: 'var(--accent)', color: '#07080f' }
+                  : { background: 'var(--surface)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.08)' }
+              }
+            >
+              {g.label === 'All' ? 'ALL' : `GEN ${g.label}`}
+            </button>
+          ))}
+        </div>
+
+        <span className="font-mono text-xs text-white/25 ml-auto">
           {filtered.length.toLocaleString()} Pokémon
         </span>
       </div>
@@ -80,7 +112,7 @@ export function PokemonGrid({ pokemon }: { pokemon: PokemonEntry[] }) {
 
       {filtered.length === 0 && (
         <div className="text-center py-20 text-white/25 font-mono text-sm">
-          No Pokémon found for &ldquo;{query}&rdquo;
+          No Pokémon found{query ? ` for "${query}"` : ''} in Gen {GENS[gen].label}
         </div>
       )}
     </div>
