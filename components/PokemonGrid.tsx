@@ -37,7 +37,7 @@ const DEFAULT_DIR  = 'asc';
 
 export function PokemonGrid({ pokemon }: { pokemon: PokemonEntry[] }) {
   const [query,         setQuery]         = useState('');
-  const [gen,           setGen]           = useState(0);
+  const [selectedGens,  setSelectedGens]  = useState<Set<number>>(new Set());
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
   const [sortKey,       setSortKey]       = useState(DEFAULT_SORT);
   const [sortDir,       setSortDir]       = useState<'asc' | 'desc'>(DEFAULT_DIR);
@@ -50,7 +50,7 @@ export function PokemonGrid({ pokemon }: { pokemon: PokemonEntry[] }) {
       if (raw) {
         const s = JSON.parse(raw);
         if (s.query)         setQuery(s.query);
-        if (s.gen != null)   setGen(s.gen);
+        if (s.gens?.length)  setSelectedGens(new Set(s.gens));
         if (s.types?.length) setSelectedTypes(new Set(s.types));
         if (s.sortKey)       setSortKey(s.sortKey);
         if (s.sortDir)       setSortDir(s.sortDir);
@@ -64,10 +64,17 @@ export function PokemonGrid({ pokemon }: { pokemon: PokemonEntry[] }) {
     if (!hydrated) return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        query, gen, types: [...selectedTypes], sortKey, sortDir,
+        query, gens: [...selectedGens], types: [...selectedTypes], sortKey, sortDir,
       }));
     } catch {}
-  }, [hydrated, query, gen, selectedTypes, sortKey, sortDir]);
+  }, [hydrated, query, selectedGens, selectedTypes, sortKey, sortDir]);
+
+  const toggleGen = (i: number) =>
+    setSelectedGens(prev => {
+      const next = new Set(prev);
+      next.has(i) ? next.delete(i) : next.add(i);
+      return next;
+    });
 
   const toggleType = (t: string) =>
     setSelectedTypes(prev => {
@@ -86,19 +93,18 @@ export function PokemonGrid({ pokemon }: { pokemon: PokemonEntry[] }) {
   };
 
   const isDirty =
-    query || gen !== 0 || selectedTypes.size > 0 || sortKey !== DEFAULT_SORT || sortDir !== DEFAULT_DIR;
+    !!query || selectedGens.size > 0 || selectedTypes.size > 0 || sortKey !== DEFAULT_SORT || sortDir !== DEFAULT_DIR;
 
   const reset = () => {
-    setQuery(''); setGen(0); setSelectedTypes(new Set());
+    setQuery(''); setSelectedGens(new Set()); setSelectedTypes(new Set());
     setSortKey(DEFAULT_SORT); setSortDir(DEFAULT_DIR);
   };
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const { min, max } = GENS[gen];
 
     const result = pokemon.filter(p => {
-      if (p.id < min || p.id > max) return false;
+      if (selectedGens.size > 0 && ![...selectedGens].some(gi => p.id >= GENS[gi].min && p.id <= GENS[gi].max)) return false;
       if (selectedTypes.size > 0 && !p.types.some(t => selectedTypes.has(t))) return false;
       if (q && !p.name.includes(q) && String(p.id) !== q) return false;
       return true;
@@ -115,7 +121,7 @@ export function PokemonGrid({ pokemon }: { pokemon: PokemonEntry[] }) {
       if (va > vb) return sortDir === 'asc' ?  1 : -1;
       return 0;
     });
-  }, [pokemon, query, gen, selectedTypes, sortKey, sortDir]);
+  }, [pokemon, query, selectedGens, selectedTypes, sortKey, sortDir]);
 
   const showStatBadge = sortKey !== 'id' && sortKey !== 'name';
 
@@ -151,16 +157,20 @@ export function PokemonGrid({ pokemon }: { pokemon: PokemonEntry[] }) {
         {/* Row 2: generation */}
         <div className="flex items-center gap-x-2 gap-y-1.5 px-4 py-2.5 flex-wrap" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
           <span className="font-mono text-[0.57rem] tracking-[0.25em] text-white/20 uppercase w-9 shrink-0">GEN</span>
-          {GENS.map((g, i) => (
-            <button key={g.label} onClick={() => setGen(i)}
-              className="px-2 py-0.5 rounded font-display text-xs tracking-wider transition-colors"
-              style={gen === i
-                ? { background: 'var(--accent)', color: '#07080f' }
-                : { background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.35)' }}
-            >
-              {g.label === 'All' ? 'ALL' : g.label}
-            </button>
-          ))}
+          {GENS.slice(1).map((g, i) => {
+            const idx = i + 1;
+            const on = selectedGens.has(idx);
+            return (
+              <button key={g.label} onClick={() => toggleGen(idx)}
+                className="px-2 py-0.5 rounded font-display text-xs tracking-wider transition-colors"
+                style={on
+                  ? { background: 'var(--accent)', color: '#07080f' }
+                  : { background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.35)' }}
+              >
+                {g.label}
+              </button>
+            );
+          })}
         </div>
 
         {/* Row 3: type */}
