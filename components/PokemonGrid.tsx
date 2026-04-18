@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { spriteUrl, formatName, PokemonEntry } from '@/lib/pokeapi';
 import { ALL_TYPES, TYPE_COLORS } from '@/lib/constants';
+
+const STORAGE_KEY = 'pokedex-filters';
 
 const GENS = [
   { label: 'All',  min: 1,   max: 1025 },
@@ -39,6 +41,33 @@ export function PokemonGrid({ pokemon }: { pokemon: PokemonEntry[] }) {
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
   const [sortKey,       setSortKey]       = useState(DEFAULT_SORT);
   const [sortDir,       setSortDir]       = useState<'asc' | 'desc'>(DEFAULT_DIR);
+  const [hydrated,      setHydrated]      = useState(false);
+
+  // Load from localStorage once on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const s = JSON.parse(raw);
+        if (s.query)         setQuery(s.query);
+        if (s.gen != null)   setGen(s.gen);
+        if (s.types?.length) setSelectedTypes(new Set(s.types));
+        if (s.sortKey)       setSortKey(s.sortKey);
+        if (s.sortDir)       setSortDir(s.sortDir);
+      }
+    } catch {}
+    setHydrated(true);
+  }, []);
+
+  // Persist on every change (skip before hydration to avoid overwriting with defaults)
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        query, gen, types: [...selectedTypes], sortKey, sortDir,
+      }));
+    } catch {}
+  }, [hydrated, query, gen, selectedTypes, sortKey, sortDir]);
 
   const toggleType = (t: string) =>
     setSelectedTypes(prev => {
