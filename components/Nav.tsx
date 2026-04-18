@@ -6,7 +6,10 @@ import { useTeam } from '@/context/TeamContext';
 
 export function Nav() {
   const pathname = usePathname();
-  const { team } = useTeam();
+  const { teams, activeTeam } = useTeam();
+
+  const memberCount = activeTeam?.members.length ?? 0;
+  const teamCount   = teams.length;
 
   return (
     <nav className="w-full max-w-5xl mx-auto flex items-center justify-between px-4 py-4 mb-6">
@@ -17,9 +20,7 @@ export function Nav() {
         <Link
           href="/"
           className={`px-3 py-1.5 rounded text-sm font-semibold tracking-wide transition-colors ${
-            pathname === '/'
-              ? 'bg-white/10 text-white'
-              : 'text-white/50 hover:text-white/80'
+            pathname === '/' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white/80'
           }`}
         >
           POKÉDEX
@@ -27,18 +28,21 @@ export function Nav() {
         <Link
           href="/team"
           className={`px-3 py-1.5 rounded text-sm font-semibold tracking-wide transition-colors flex items-center gap-2 ${
-            pathname === '/team'
-              ? 'bg-white/10 text-white'
-              : 'text-white/50 hover:text-white/80'
+            pathname === '/team' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white/80'
           }`}
         >
-          TEAM
-          {team.length > 0 && (
-            <span
-              className="rounded-full text-[0.65rem] font-mono w-5 h-5 flex items-center justify-center text-[#07080f]"
-              style={{ background: 'var(--accent)' }}
-            >
-              {team.length}
+          TEAMS
+          {teamCount > 0 && (
+            <span className="flex items-center gap-1">
+              <span
+                className="rounded-full text-[0.65rem] font-mono w-5 h-5 flex items-center justify-center text-[#07080f]"
+                style={{ background: 'var(--accent)' }}
+              >
+                {memberCount}
+              </span>
+              {teamCount > 1 && (
+                <span className="font-mono text-[0.6rem] text-white/30">{teamCount}</span>
+              )}
             </span>
           )}
         </Link>
