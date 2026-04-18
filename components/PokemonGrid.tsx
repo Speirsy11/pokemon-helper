@@ -20,25 +20,28 @@ const GENS = [
   { label: 'IX',   min: 906, max: 1025 },
 ];
 
-// Maps each game to its PokeAPI regional Pokédex names.
-// A Pokémon appears in a game if it's in any of those dexes.
+// baseDexes = regional dex available in the main game.
+// dlcDexes  = added by DLC/expansion packs.
 const GAMES = [
-  { id: 'rb',   label: 'Red / Blue',      dexes: ['kanto'] },
-  { id: 'gs',   label: 'Gold / Silver',   dexes: ['original-johto'] },
-  { id: 'rs',   label: 'Ruby / Sapphire', dexes: ['hoenn'] },
-  { id: 'frlg', label: 'FR / LG',         dexes: ['kanto'] },
-  { id: 'dp',   label: 'Diamond / Pearl', dexes: ['original-sinnoh'] },
-  { id: 'hgss', label: 'HG / SS',         dexes: ['updated-johto'] },
-  { id: 'bw',   label: 'Black / White',   dexes: ['original-unova'] },
-  { id: 'b2w2', label: 'B2 / W2',         dexes: ['updated-unova'] },
-  { id: 'xy',   label: 'X / Y',           dexes: ['kalos-central', 'kalos-coastal', 'kalos-mountain'] },
-  { id: 'oras', label: 'OR / AS',         dexes: ['updated-hoenn'] },
-  { id: 'sm',   label: 'Sun / Moon',      dexes: ['original-alola'] },
-  { id: 'usum', label: 'US / UM',         dexes: ['updated-alola'] },
-  { id: 'swsh', label: 'Sw / Sh',         dexes: ['galar', 'isle-of-armor', 'crown-tundra'] },
-  { id: 'la',   label: 'Legends: A',      dexes: ['hisui'] },
-  { id: 'sv',   label: 'Sc / Vi',         dexes: ['paldea', 'kitakami', 'blueberry'] },
+  { id: 'rb',   label: 'Red / Blue',      baseDexes: ['kanto'],                                          dlcDexes: [] },
+  { id: 'gs',   label: 'Gold / Silver',   baseDexes: ['original-johto'],                                 dlcDexes: [] },
+  { id: 'rs',   label: 'Ruby / Sapphire', baseDexes: ['hoenn'],                                          dlcDexes: [] },
+  { id: 'frlg', label: 'FR / LG',         baseDexes: ['kanto'],                                          dlcDexes: [] },
+  { id: 'dp',   label: 'Diamond / Pearl', baseDexes: ['original-sinnoh'],                                dlcDexes: [] },
+  { id: 'hgss', label: 'HG / SS',         baseDexes: ['updated-johto'],                                  dlcDexes: [] },
+  { id: 'bw',   label: 'Black / White',   baseDexes: ['original-unova'],                                 dlcDexes: [] },
+  { id: 'b2w2', label: 'B2 / W2',         baseDexes: ['updated-unova'],                                  dlcDexes: [] },
+  { id: 'xy',   label: 'X / Y',           baseDexes: ['kalos-central', 'kalos-coastal', 'kalos-mountain'], dlcDexes: [] },
+  { id: 'oras', label: 'OR / AS',         baseDexes: ['updated-hoenn'],                                  dlcDexes: [] },
+  { id: 'sm',   label: 'Sun / Moon',      baseDexes: ['original-alola'],                                 dlcDexes: [] },
+  { id: 'usum', label: 'US / UM',         baseDexes: ['updated-alola'],                                  dlcDexes: [] },
+  { id: 'swsh', label: 'Sw / Sh',         baseDexes: ['galar'],                                          dlcDexes: ['isle-of-armor', 'crown-tundra'] },
+  { id: 'la',   label: 'Legends: A',      baseDexes: ['hisui'],                                          dlcDexes: [] },
+  { id: 'sv',   label: 'Sc / Vi',         baseDexes: ['paldea'],                                         dlcDexes: ['kitakami', 'blueberry'] },
 ];
+
+// Games that actually have DLC dexes (used to decide whether to show the toggle)
+const GAMES_WITH_DLC = new Set(GAMES.filter(g => g.dlcDexes.length > 0).map(g => g.id));
 
 const SORT_OPTIONS = [
   { key: 'id',               label: '#'    },
@@ -59,6 +62,7 @@ export function PokemonGrid({ pokemon }: { pokemon: PokemonEntry[] }) {
   const [query,         setQuery]         = useState('');
   const [selectedGens,  setSelectedGens]  = useState<Set<number>>(new Set());
   const [selectedGames, setSelectedGames] = useState<Set<string>>(new Set());
+  const [includeDlc,    setIncludeDlc]    = useState(true);
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
   const [sortKey,       setSortKey]       = useState(DEFAULT_SORT);
   const [sortDir,       setSortDir]       = useState<'asc' | 'desc'>(DEFAULT_DIR);
@@ -70,12 +74,13 @@ export function PokemonGrid({ pokemon }: { pokemon: PokemonEntry[] }) {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const s = JSON.parse(raw);
-        if (s.query)          setQuery(s.query);
-        if (s.gens?.length)   setSelectedGens(new Set(s.gens));
-        if (s.games?.length)  setSelectedGames(new Set(s.games));
-        if (s.types?.length)  setSelectedTypes(new Set(s.types));
-        if (s.sortKey)        setSortKey(s.sortKey);
-        if (s.sortDir)        setSortDir(s.sortDir);
+        if (s.query)               setQuery(s.query);
+        if (s.gens?.length)        setSelectedGens(new Set(s.gens));
+        if (s.games?.length)       setSelectedGames(new Set(s.games));
+        if (s.includeDlc != null)  setIncludeDlc(s.includeDlc);
+        if (s.types?.length)       setSelectedTypes(new Set(s.types));
+        if (s.sortKey)             setSortKey(s.sortKey);
+        if (s.sortDir)             setSortDir(s.sortDir);
       }
     } catch {}
     setHydrated(true);
@@ -86,10 +91,11 @@ export function PokemonGrid({ pokemon }: { pokemon: PokemonEntry[] }) {
     if (!hydrated) return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        query, gens: [...selectedGens], games: [...selectedGames], types: [...selectedTypes], sortKey, sortDir,
+        query, gens: [...selectedGens], games: [...selectedGames], includeDlc,
+        types: [...selectedTypes], sortKey, sortDir,
       }));
     } catch {}
-  }, [hydrated, query, selectedGens, selectedGames, selectedTypes, sortKey, sortDir]);
+  }, [hydrated, query, selectedGens, selectedGames, includeDlc, selectedTypes, sortKey, sortDir]);
 
   const toggleGen = (i: number) =>
     setSelectedGens(prev => {
@@ -136,7 +142,11 @@ export function PokemonGrid({ pokemon }: { pokemon: PokemonEntry[] }) {
     const result = pokemon.filter(p => {
       if (selectedGens.size > 0 && ![...selectedGens].some(gi => p.id >= GENS[gi].min && p.id <= GENS[gi].max)) return false;
       if (selectedGames.size > 0) {
-        const requiredDexes = new Set([...selectedGames].flatMap(id => GAMES.find(g => g.id === id)?.dexes ?? []));
+        const requiredDexes = new Set([...selectedGames].flatMap(id => {
+          const g = GAMES.find(x => x.id === id);
+          if (!g) return [];
+          return includeDlc ? [...g.baseDexes, ...g.dlcDexes] : g.baseDexes;
+        }));
         if (!p.dexes.some(d => requiredDexes.has(d))) return false;
       }
       if (selectedTypes.size > 0 && !p.types.some(t => selectedTypes.has(t))) return false;
@@ -155,7 +165,7 @@ export function PokemonGrid({ pokemon }: { pokemon: PokemonEntry[] }) {
       if (va > vb) return sortDir === 'asc' ?  1 : -1;
       return 0;
     });
-  }, [pokemon, query, selectedGens, selectedGames, selectedTypes, sortKey, sortDir]);
+  }, [pokemon, query, selectedGens, selectedGames, includeDlc, selectedTypes, sortKey, sortDir]);
 
   const showStatBadge = sortKey !== 'id' && sortKey !== 'name';
 
@@ -210,7 +220,7 @@ export function PokemonGrid({ pokemon }: { pokemon: PokemonEntry[] }) {
         {/* Row 3: game */}
         <div className="flex items-start gap-x-2 gap-y-1.5 px-4 py-2.5 flex-wrap" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
           <span className="font-mono text-[0.57rem] tracking-[0.25em] text-white/20 uppercase w-9 shrink-0 pt-0.5">GAME</span>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1.5 flex-1">
             {GAMES.map(g => {
               const on = selectedGames.has(g.id);
               return (
@@ -225,6 +235,19 @@ export function PokemonGrid({ pokemon }: { pokemon: PokemonEntry[] }) {
               );
             })}
           </div>
+          {/* DLC toggle — only visible when a DLC-capable game is selected */}
+          {[...selectedGames].some(id => GAMES_WITH_DLC.has(id)) && (
+            <button
+              onClick={() => setIncludeDlc(v => !v)}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded font-mono text-[0.62rem] tracking-wide transition-colors shrink-0 self-start"
+              style={includeDlc
+                ? { background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.8)',  border: '1px solid rgba(255,255,255,0.15)' }
+                : { background: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.3)',  border: '1px solid rgba(255,255,255,0.07)' }}
+            >
+              <span style={{ color: includeDlc ? 'var(--accent)' : 'rgba(255,255,255,0.2)' }}>⬡</span>
+              DLC
+            </button>
+          )}
         </div>
 
         {/* Row 4: type */}
