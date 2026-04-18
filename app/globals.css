@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans:    var(--font-rajdhani), sans-serif;
+  --font-mono:    var(--font-space-mono), monospace;
+  --font-display: var(--font-bebas), sans-serif;
+}
+
+:root {
+  --accent: #78C850;
+  --bg: #07080f;
+  --surface: #0e0f1c;
+  --surface2: #13152a;
+}
+
+body {
+  background-color: var(--bg);
+  color: #e8eaf0;
+  min-height: 100vh;
+}
