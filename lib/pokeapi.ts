@@ -8,14 +8,49 @@ async function get(url: string, revalidate = 3600) {
   return res.json();
 }
 
-export async function getAllPokemon(): Promise<{ name: string; id: number }[]> {
-  const data = await get(`${BASE}/pokemon?limit=1302&offset=0`, 86400);
-  return data.results
-    .map((p: { name: string; url: string }) => ({
+export interface PokemonEntry {
+  name: string;
+  id: number;
+  types: string[];
+  stats: Record<string, number>;
+  bst: number;
+}
+
+export async function getAllPokemon(): Promise<PokemonEntry[]> {
+  const query = `{
+    pokemon_v2_pokemon(where: {id: {_lte: 1025}}, order_by: {id: asc}) {
+      id
+      name
+      pokemon_v2_pokemontypes { pokemon_v2_type { name } }
+      pokemon_v2_pokemonstats { base_stat pokemon_v2_stat { name } }
+    }
+  }`;
+
+  const res = await fetch('https://beta.pokeapi.co/graphql/v1beta', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query }),
+    next: { revalidate: 86400 },
+  });
+
+  if (!res.ok) throw new Error('GraphQL fetch failed');
+  const { data } = await res.json();
+
+  return data.pokemon_v2_pokemon.map((p: any) => {
+    const stats: Record<string, number> = {};
+    let bst = 0;
+    p.pokemon_v2_pokemonstats.forEach((s: any) => {
+      stats[s.pokemon_v2_stat.name] = s.base_stat;
+      bst += s.base_stat;
+    });
+    return {
+      id: p.id,
       name: p.name,
-      id: extractId(p.url),
-    }))
-    .filter((p: { id: number }) => p.id <= 1025);
+      types: p.pokemon_v2_pokemontypes.map((t: any) => t.pokemon_v2_type.name),
+      stats,
+      bst,
+    };
+  });
 }
 
 export async function getPokemon(nameOrId: string) {
